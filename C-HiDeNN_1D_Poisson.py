@@ -245,9 +245,9 @@ def get_shape_grads(Gauss_Num, dim, elem_type, XY, Elem_nodes):
 # compute FEM basic stuff
 def get_A_b_FEM(XY, Elem_nodes, Gauss_Num_FEM, dim, elem_type, dof_global, c_body):
     
-    # decide how many blocks are we gonnna use
+    # decide how many blocks are we gonnna use #what's the block here？
     quad_num_FEM = Gauss_Num_FEM**dim
-    size_BTB = nelem * quad_num_FEM * elem_dof * elem_dof
+    size_BTB = nelem * quad_num_FEM * elem_dof * elem_dof #what is size_BTB, why multiply elem_dof for 2 times？elem_dof is the number of nodes per element
     nblock = int(size_BTB // max_array_size_block + 1)
     nelem_per_block_regular = nelem // nblock
     if nelem % nblock == 0:
@@ -269,14 +269,15 @@ def get_A_b_FEM(XY, Elem_nodes, Gauss_Num_FEM, dim, elem_type, dof_global, c_bod
                                             + nelem_per_block_remainder), dtype=np.int32)
         else:
             nelem_per_block = nelem_per_block_regular
-            elem_idx_block = np.array(range(nelem_per_block*iblock, nelem_per_block*(iblock+1)), dtype=np.int32)
+            elem_idx_block = np.array(range(nelem_per_block*iblock, nelem_per_block*(iblock+1)), dtype=np.int32) #element number
             
         Elem_nodes_block = Elem_nodes[elem_idx_block]
         shape_grads_physical_block, JxW_block = get_shape_grads(Gauss_Num_FEM, dim, elem_type, XY, Elem_nodes_block)    
         # print(shape_grads_physical_block.shape)
-        
-        BTB_block = np.matmul(shape_grads_physical_block, np.transpose(shape_grads_physical_block, (0,1,3,2))) # (num_cells, num_quads, num_nodes, num_nodes)
+        # (num_cells, num_quads, num_nodes, dim), (num_cells, num_quads)
+        BTB_block = np.matmul(shape_grads_physical_block, np.transpose(shape_grads_physical_block, (0,1,3,2))) 
         # print(BTB_block.shape)
+        # (num_cells, num_quads, num_nodes, dim) @ (num_cells, num_quads, dim, num_nodes)-->(num_cells, num_quads, num_nodes, num_nodes)
         V_block = np.sum(BTB_block * JxW_block[:, :, None, None], axis=(1)).reshape(-1) # (num_cells, num_nodes, num_nodes) -> (1 ,)
         I_block = np.repeat(Elem_nodes_block, nodes_per_elem, axis=1).reshape(-1)
         J_block = np.repeat(Elem_nodes_block, nodes_per_elem, axis=0).reshape(-1)
@@ -284,13 +285,13 @@ def get_A_b_FEM(XY, Elem_nodes, Gauss_Num_FEM, dim, elem_type, dof_global, c_bod
         if iblock == 0:
             A_sp_scipy =  csc_matrix((V_block, (I_block, J_block)), shape=(dof_global, dof_global)) 
         else:
-            A_sp_scipy +=  csc_matrix((V_block, (I_block, J_block)), shape=(dof_global, dof_global)) 
+            A_sp_scipy +=  csc_matrix((V_block, (I_block, J_block)), shape=(dof_global, dof_global)) #K matrix
     
         physical_coos_block = np.take(XY, Elem_nodes_block, axis=0) # (num_cells, num_nodes, dim)
         XYs_block = np.sum(shape_vals[None, :, :, None] * physical_coos_block[:, None, :, :], axis=2) # (num_cell, num_quad, dim)
         body_force_block = np.squeeze(vv_b_fun(XYs_block, c_body))
         v_vals_block = np.repeat(shape_vals[None, :, :], nelem_per_block, axis=0) # (num_cells, num_quads, num_nodes)
-        rhs_vals_block = np.sum(v_vals_block * body_force_block[:,:,None] * JxW_block[:, :, None], axis=1).reshape(-1) # (num_cells, num_nodes) -> (num_cells*num_nodes)
+        rhs_vals_block = np.sum(v_vals_block * body_force_block[:,:,None] * JxW_block[:, :, None], axis=1).reshape(-1) # (num_cells, num_nodes) -> (num_cells*num_nodes) #int N*b d\omega
         rhs = rhs.at[Elem_nodes_block.reshape(-1)].add(rhs_vals_block)  # assemble 
     # A_sp_scipy = A_sp_scipy.sort_indices()
     # A_sp = BCOO.from_scipy_sparse(A_sp_scipy)
