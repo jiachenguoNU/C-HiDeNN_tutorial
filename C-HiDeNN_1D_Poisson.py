@@ -78,7 +78,11 @@ def GaussSet(Gauss_Num = 2, cuda=False):
     return Gauss_Weight1D, Gauss_Point1D
 
 def uniform_mesh(d1, p, element_type, regular_mesh_bool):
-      
+    #d1: dimension of the domain
+    #p: number of the elements for the discretized 1d domain
+    #element_type: only 1D 2node linear element
+    #regular_mesh_bool: true if this is a regular mesh; false if this mesh is irregular
+
     if element_type == 'D1LN2N': # 1D 2node linear element
     
         PD = 1 # problem dimension
@@ -122,10 +126,11 @@ def uniform_mesh(d1, p, element_type, regular_mesh_bool):
     return NL, EL, iffix, NoN, NoE, dof_global
 
 def get_quad_points(Gauss_Num, dim):
+    #Gauss_Num is the number of gauss point used in the integra
     # This function is compatible with FEM and CFEM
     
     Gauss_Weight1D, Gauss_Point1D = GaussSet(Gauss_Num)
-    
+    #get the weights and location for different number of gauss points
     quad_points, quad_weights = [], []
 
     for ipoint, iweight in zip(Gauss_Point1D, Gauss_Weight1D):
@@ -146,7 +151,8 @@ def get_quad_points(Gauss_Num, dim):
     quad_points = np.array(quad_points) # (quad_degree*dim, dim)
     quad_weights = np.array(quad_weights) # (quad_degree,)
     return quad_points, quad_weights
-
+    #quad_points is a list of list of all the quadrature coor
+    #quad_weights is a list of all the weights corresponding to the quadrature point
 
 def get_shape_val_functions(elem_type):
     """Hard-coded first order shape functions in the parent domain.
@@ -158,12 +164,13 @@ def get_shape_val_functions(elem_type):
         shape_fun = [f1, f2]
         
     return shape_fun
-
+    #shape_fun is a list that has 2 lambda functions
+    #to use a lambda function, use a parenthesis after that
 def get_shape_grad_functions(elem_type):
     shape_fns = get_shape_val_functions(elem_type)
     return [jax.grad(f) for f in shape_fns]
 
-@partial(jax.jit, static_argnames=['Gauss_Num', 'dim', 'elem_type'])
+@partial(jax.jit, static_argnames=['Gauss_Num', 'dim', 'elem_type'])      #what does this mean?
 def get_shape_vals(Gauss_Num, dim, elem_type):
     """Pre-compute shape function values
 
@@ -195,7 +202,7 @@ def get_shape_grads(Gauss_Num, dim, elem_type, XY, Elem_nodes):
     -------
     shape_grads_physical: ndarray
         (cell, num_quads, num_nodes, dim)  
-    JxW: ndarray
+    JxW: ndarray #Jocobian time the weight matrix
         (cell, num_quads)
     """
     shape_grad_fns = get_shape_grad_functions(elem_type)
@@ -221,7 +228,7 @@ def get_shape_grads(Gauss_Num, dim, elem_type, XY, Elem_nodes):
     # shape_grads:   (none,      num_quads, num_nodes, none, dim)
     # (num_cells, num_quads, num_nodes, dim, dim) -> (num_cells, num_quads, dim, dim)
     jacobian_dx_deta = np.sum(physical_coos[:, None, :, :, None] * shape_grads[None, :, :, None, :], axis=2) # dx/deta
-    # print(jacobian_dx_deta.shape)
+    print('jacobian_dx_deta.shape is',jacobian_dx_deta.shape)
     jacbian_det = np.linalg.det(jacobian_dx_deta) # (num_cells, num_quads)
     # print(jacbian_det)
     jacobian_deta_dx = np.linalg.inv(jacobian_dx_deta) # (num_cells, num_quads, dim, dim) # deta/dx
