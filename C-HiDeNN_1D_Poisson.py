@@ -689,9 +689,10 @@ def get_CFEM_shape_fun_block(elem_idx_block, nelem_per_block,
     # (num_cells, num_quads, edex_max)
 
     Grad_N_til_block = (np.sum(shape_grads_physical_block[:, :, :, None, :]*Phi[:,:,:,:,:1], axis=2) 
-                      + np.sum(shape_vals[None, :, :, None, None]*Phi[:,:,:,:,1:], axis=2) )
+                      + np.sum(shape_vals[None, :, :, None, None]*Phi[:,:,:,:,1:], axis=2) ) 
     
-    #(num_cell, num_quads, num_nodes, dim) * (num_cells, num_quads, num_nodes, edex_max) --> and sum (num_cells, num_quads, edex_max)
+    #differece between * and @
+    #(num_cell, num_quads, num_nodes, dim) * (num_cells, num_quads, num_nodes, edex_max) --> and sum (num_cells, num_quads, dim, edex_max)
 
     # (num_cells, num_quads, edex_max)
 
