@@ -224,17 +224,22 @@ def get_shape_grads(Gauss_Num, dim, elem_type, XY, Elem_nodes):
 
     physical_coos = np.take(XY, Elem_nodes, axis=0) # (num_cells, num_nodes, dim)
     # print(physical_coos)
+
     # physical_coos: (num_cells, none,      num_nodes, dim, none)
     # shape_grads:   (none,      num_quads, num_nodes, none, dim)
-    # (num_cells, num_quads, num_nodes, dim, dim) -> (num_cells, num_quads, dim, dim)
+    
     jacobian_dx_deta = np.sum(physical_coos[:, None, :, :, None] * shape_grads[None, :, :, None, :], axis=2) # dx/deta
+    # (num_cells, num_quads, num_nodes, dim, dim) -> (num_cells, num_quads, dim, dim)
+
     print('jacobian_dx_deta.shape is',jacobian_dx_deta.shape)
     jacbian_det = np.linalg.det(jacobian_dx_deta) # (num_cells, num_quads)
     # print(jacbian_det)
     jacobian_deta_dx = np.linalg.inv(jacobian_dx_deta) # (num_cells, num_quads, dim, dim) # deta/dx
     # print(jacobian_deta_dx.shape)
-    # (num_cell, num_quads, num_nodes, dim) matmul (num_cells, num_quads, dim, dim) -> (num_cell, num_quads, num_nodes, dim)
+ 
     shape_grads_physical = shape_grads[None, :, :, :] @ jacobian_deta_dx
+    # (num_cell, num_quads, num_nodes, dim) matmul (num_cells, num_quads, dim, dim) -> (num_cell, num_quads, num_nodes, dim)
+
     # print(shape_grads_physical.shape, shape_grads_physical)
 
     # For first order FEM with 8 quad points, those quad weights are all equal to one
@@ -275,10 +280,12 @@ def get_A_b_FEM(XY, Elem_nodes, Gauss_Num_FEM, dim, elem_type, dof_global, c_bod
         shape_grads_physical_block, JxW_block = get_shape_grads(Gauss_Num_FEM, dim, elem_type, XY, Elem_nodes_block)    
         # print(shape_grads_physical_block.shape)
         # (num_cells, num_quads, num_nodes, dim), (num_cells, num_quads)
+
         BTB_block = np.matmul(shape_grads_physical_block, np.transpose(shape_grads_physical_block, (0,1,3,2))) 
         # print(BTB_block.shape)
         # (num_cells, num_quads, num_nodes, dim) @ (num_cells, num_quads, dim, num_nodes)-->(num_cells, num_quads, num_nodes, num_nodes)
-        V_block = np.sum(BTB_block * JxW_block[:, :, None, None], axis=(1)).reshape(-1) # (num_cells, num_nodes, num_nodes) -> (1 ,)
+
+        V_block = np.sum(BTB_block * JxW_block[:, :, None, None], axis=(1)).reshape(-1) # (num_cells, num_nodes, num_nodes) -> (1 ,) k matrix
         I_block = np.repeat(Elem_nodes_block, nodes_per_elem, axis=1).reshape(-1)
         J_block = np.repeat(Elem_nodes_block, nodes_per_elem, axis=0).reshape(-1)
         
@@ -347,7 +354,7 @@ def get_dex_max(indices, indptr, elem_type, s_patch, d_c, XY, Elem_nodes, nelem,
             elemental_patch_nodes = onp.unique(onp.concatenate((indices[ indptr[elem_nodes[0]] : indptr[elem_nodes[0]+1] ],  # node_idx 0
                                                                 indices[ indptr[elem_nodes[1]] : indptr[elem_nodes[1]+1] ]))) # node_idx 1
         
-        edex = len(elemental_patch_nodes)
+        edex = len(elemental_patch_nodes) #element patch nodes size
         edexes[ielem] = edex
         Elemental_patch_nodes_st[ielem, :edex] = elemental_patch_nodes
         
@@ -675,12 +682,19 @@ def get_CFEM_shape_fun_block(elem_idx_block, nelem_per_block,
             XY, Elem_nodes, a_dil, mbasis) ########################################### XY_norm!!
 
    
-    # (num_cells, num_quads, num_nodes, edex_max, 1+dim)
+    # (num_cells, num_quads, num_nodes, edex_max, 1+dim) why this? itself and derivative
     Phi = np.reshape(Phi, (nelem_per_block, quad_num, nodes_per_elem, edex_max, 1+dim))
-    N_til_block = np.sum(shape_vals[None, :, :, None]*Phi[:,:,:,:,0], axis=2) # (num_cells, num_quads, edex_max)
+
+    N_til_block = np.sum(shape_vals[None, :, :, None]*Phi[:,:,:,:,0], axis=2) 
+    # (num_cells, num_quads, edex_max)
+
     Grad_N_til_block = (np.sum(shape_grads_physical_block[:, :, :, None, :]*Phi[:,:,:,:,:1], axis=2) 
                       + np.sum(shape_vals[None, :, :, None, None]*Phi[:,:,:,:,1:], axis=2) )
     
+    #(num_cell, num_quads, num_nodes, dim) * (num_cells, num_quads, num_nodes, edex_max) --> and sum (num_cells, num_quads, edex_max)
+
+    # (num_cells, num_quads, edex_max)
+
     # Check partition of unity
     # if 0 in elem_idx_block: 
     if not ( np.allclose(np.sum(N_til_block, axis=2), np.ones((nelem_per_block, quad_num), dtype=np.double)) and
@@ -695,7 +709,7 @@ def get_CFEM_shape_fun_block(elem_idx_block, nelem_per_block,
 
 def get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, dim, elem_type, nodes_per_elem,
                 indices, indptr, s_patch, d_c, edex_max, ndex_max,
-                 a_dil, mbasis):
+                 a_dil, mbasis): #main solver fun to look at
 
     start_time = time.time()
     # time_vmap, time_BTB, time_sp, time_rhs = 0, 0,0,0
@@ -705,7 +719,7 @@ def get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, dim, 
     size_BTB = int(nelem) * int(quad_num_CFEM) * int(edex_max*dim) * int(edex_max*dim)
     size_Phi = int(nelem) * int(quad_num_CFEM) * int(elem_dof) * int(edex_max) * int(1+dim)
     size_Gs  = int(nelem) * int(quad_num_CFEM) * int(elem_dof) * int((ndex_max+mbasis)**2)
-    nblock = int(max(size_BTB, size_Phi, size_Gs) // max_array_size_block + 1) # regular blocks + 1 remainder
+    nblock = int(max(size_BTB, size_Phi, size_Gs) // max_array_size_block + 1)                    # regular blocks + 1 remainder
     # print('nelem', nelem, nblock)
     
     nelem_per_block_regular = nelem // nblock # set any value
@@ -748,9 +762,12 @@ def get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, dim, 
         # time_vmap += (time.time() - start_vmap)
         
         # start_BTB = time.time()
-        BTB_block = onp.matmul(Grad_N_til_block, np.transpose(Grad_N_til_block, (0,1,3,2))) # (num_cells, num_quads, edex_max, edex_max)
-        V_block = onp.sum(BTB_block * JxW_block[:, :, None, None], axis=(1)).reshape(-1) # (num_cells, num_nodes, num_nodes) -> (1 ,)
-        I_block = onp.repeat(Elemental_patch_nodes_st_block, edex_max, axis=1).reshape(-1)
+        # To be modified
+        BTB_block = onp.matmul(Grad_N_til_block, np.transpose(Grad_N_til_block, (0,1,3,2))) # (num_cells, num_quads, edex_max, edex_max) #K matrix in the parent domain modify here the one multiplied P_ij not edex_max?
+
+        V_block = onp.sum(BTB_block * JxW_block[:, :, None, None], axis=(1)).reshape(-1)    # (num_cells, num_nodes, num_nodes) -> (1 ,) #K matrix evaluated
+
+        I_block = onp.repeat(Elemental_patch_nodes_st_block, edex_max, axis=1).reshape(-1) 
         J_block = onp.repeat(Elemental_patch_nodes_st_block, edex_max, axis=0).reshape(-1)
         # time_BTB += (time.time() - start_BTB)
         
@@ -765,7 +782,7 @@ def get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, dim, 
         physical_coos_block = np.take(XY, Elem_nodes_block, axis=0) # (num_cells, num_nodes, dim)
         XYs_block = np.sum(shape_vals[None, :, :, None] * physical_coos_block[:, None, :, :], axis=2)
         body_force_block = np.squeeze(vv_b_fun(XYs_block, c_body))
-        rhs_vals_block = np.sum(N_til_block * body_force_block[:,:,None] * JxW_block[:, :, None], axis=1).reshape(-1) # (num_cells, num_nodes) -> (num_cells*num_nodes)
+        rhs_vals_block = np.sum(N_til_block * body_force_block[:,:,None] * JxW_block[:, :, None], axis=1).reshape(-1) # (num_cells, num_nodes) -> (num_cells*num_nodes) #body force block
         rhs = rhs.at[Elemental_patch_nodes_st_block.reshape(-1)].add(rhs_vals_block)  # assemble 
         # time_rhs += (time.time() - start_rhs)
         
@@ -990,7 +1007,7 @@ def CG_solver(get_residual, get_Ap, sol, A_sp, b, inds_nodes_list, dof_global, t
 
 #%% Main program - Cubic spline functions
 
-############# 2D Poisson ###############
+############# 1D Poisson ###############
 
 
 gpu_idx = 0
