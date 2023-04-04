@@ -297,7 +297,7 @@ def get_A_b_FEM(XY, Elem_nodes, Gauss_Num_FEM, dim, elem_type, dof_global, c_bod
         physical_coos_block = np.take(XY, Elem_nodes_block, axis=0) # (num_cells, num_nodes, dim)
         XYs_block = np.sum(shape_vals[None, :, :, None] * physical_coos_block[:, None, :, :], axis=2) # (num_cell, num_quad, dim)
         body_force_block = np.squeeze(vv_b_fun(XYs_block, c_body))
-        v_vals_block = np.repeat(shape_vals[None, :, :], nelem_per_block, axis=0) # (num_cells, num_quads, num_nodes)
+        v_vals_block = np.repeat(shape_vals[None, :, :], nelem_per_block, axis=0) # (num_cells, num_quads, num_nodes) just for 1d from here？
         rhs_vals_block = np.sum(v_vals_block * body_force_block[:,:,None] * JxW_block[:, :, None], axis=1).reshape(-1) # (num_cells, num_nodes) -> (num_cells*num_nodes) #int N*b d\omega
         rhs = rhs.at[Elem_nodes_block.reshape(-1)].add(rhs_vals_block)  # assemble 
     # A_sp_scipy = A_sp_scipy.sort_indices()
