@@ -198,32 +198,36 @@ t_hist, e_hist = path1.series()
 plt.figure()
 plt.plot(t_hist, e_hist) #plot strain_path
 plt.show()
-iso = Isotropic(710, 0.33, 7.1)
 
-stress = [0]
-strain = [0]
-ep = [0]
-ep_abs =[0] #what's the relationship between ep and ep_abs
-dlambda =[0]
-dfdsigma =[0]
-dfde =[0]
-flag =[0]
-f=[0]
-for e in e_hist[1:]:
-    strain.append(e)
-    de = strain[-1] - strain[-2]
-    sigma_1, e, ep_1, ep_abs_1, dlambda_1, dfdsigma_1, dfde_1, flag_1, f_1   = iso.update(stress[-1], strain[-1], ep[-1], ep_abs[-1], de)
-    ep = np.append(ep, ep_1)
-    ep_abs = np.append(ep_abs, ep_abs_1)
-    dlambda = np.append(dlambda, dlambda_1)
-    dfdsigma = np.append(dfdsigma, dfdsigma_1)
-    dfde = np.append(dfde, dfde_1)
-    stress = np.append(stress, sigma_1)
-    flag = np.append(flag, flag_1)
-    f=np.append(f, f_1)
-plt.figure()
-plt.plot(e_hist, stress) #plot strain_path
-plt.show()
+
+# iso = Isotropic(710, 0.33, 7.1)
+
+# stress = [0]
+# strain = [0]
+# ep = [0]
+# ep_abs =[0] #what's the relationship between ep and ep_abs
+# dlambda =[0]
+# dfdsigma =[0]
+# dfde =[0]
+# flag =[0]
+# f=[0]
+# for e in e_hist[1:]:
+#     strain.append(e)
+#     de = strain[-1] - strain[-2]
+#     sigma_1, e, ep_1, ep_abs_1, dlambda_1, dfdsigma_1, dfde_1, flag_1, f_1   = iso.update(stress[-1], strain[-1], ep[-1], ep_abs[-1], de)
+#     ep = np.append(ep, ep_1)
+#     ep_abs = np.append(ep_abs, ep_abs_1)
+#     dlambda = np.append(dlambda, dlambda_1)
+#     dfdsigma = np.append(dfdsigma, dfdsigma_1)
+#     dfde = np.append(dfde, dfde_1)
+#     stress = np.append(stress, sigma_1)
+#     flag = np.append(flag, flag_1)
+#     f=np.append(f, f_1)
+# plt.figure()
+# plt.plot(e_hist, stress) #plot strain_path
+# plt.xlabel('Strain')
+# plt.ylabel('Stress')
+# plt.show()
 
 
 
@@ -242,33 +246,37 @@ plt.show()
 #     stress = np.append(stress, sigma_1)
 # plt.figure()
 # plt.plot(e_hist, stress) #plot strain_path
+# plt.xlabel('Strain')
+# plt.ylabel('Stress')
 # plt.show()
 
 
 
-# ro = Ramberg_Osgood(710, 0.33, 7.1, 3, 10)
+ro = Ramberg_Osgood(710, 0.33, 7.1, 3, 10)
 
-# stress = [0]
-# strain = [0]
-# ep = [0]
-# ep_abs =[0]
-# dlambda =[0]
-# dfdsigma =[0]
-# dfde =[0]
-# flag =[0]
-# f=[0]
-# for e in e_hist[1:]:
-#     strain.append(e)
-#     de = strain[-1] - strain[-2]
-#     sigma_1, e, ep_1, ep_abs_1, dlambda_1, dfdsigma_1, dfde_1, flag_1, f_1   = ro.update(stress[-1], strain[-1], ep[-1], ep_abs[-1],  de)
-#     ep = np.append(ep, ep_1)
-#     ep_abs = np.append(ep_abs, ep_abs_1)
-#     dlambda = np.append(dlambda, dlambda_1)
-#     dfdsigma = np.append(dfdsigma, dfdsigma_1)
-#     dfde = np.append(dfde, dfde_1)
-#     stress = np.append(stress, sigma_1)
-#     flag = np.append(flag, flag_1)
-#     f=np.append(f, f_1)
-# plt.figure()
-# plt.plot(e_hist, stress) #plot strain_path
-# plt.show()
+stress = [0]
+strain = [0]
+ep = [0]
+ep_abs =[0]
+dlambda =[0]
+dfdsigma =[0]
+dfde =[0]
+flag =[0]
+f=[0]
+for e in e_hist[1:]:
+    strain.append(e)
+    de = strain[-1] - strain[-2]
+    sigma_1, e, ep_1, ep_abs_1, dlambda_1, dfdsigma_1, dfde_1, flag_1, f_1   = ro.update(stress[-1], strain[-1], ep[-1], ep_abs[-1],  de)
+    ep = np.append(ep, ep_1)
+    ep_abs = np.append(ep_abs, ep_abs_1)
+    dlambda = np.append(dlambda, dlambda_1)
+    dfdsigma = np.append(dfdsigma, dfdsigma_1)
+    dfde = np.append(dfde, dfde_1)
+    stress = np.append(stress, sigma_1)
+    flag = np.append(flag, flag_1)
+    f=np.append(f, f_1)
+plt.figure()
+plt.plot(e_hist, stress) #plot strain_path
+plt.xlabel('Strain')
+plt.ylabel('Stress')
+plt.show()
