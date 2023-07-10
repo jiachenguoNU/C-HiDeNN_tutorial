@@ -9,7 +9,7 @@ def read_mesh_ABQ(parent_dir, problem_type, input_file_name):
     
     # start_time = time.time()
     
-    path = os.path.join(parent_dir, 'abaqus_input')
+    path = os.path.join(parent_dir)
     path = os.path.join(path, problem_type)
     path = os.path.join(path, input_file_name)
     file = open(path, 'r')

@@ -14,7 +14,7 @@ import pandas as pd
 from read_mesh import read_mesh_ABQ
 import matplotlib.pyplot as plt
 # from matplotlib import cm
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"  # add this
 
 # memory report
@@ -301,7 +301,7 @@ def get_A_b_FEM(XY, Elem_nodes, connectivity, nelem, Gauss_Num_FEM, quad_num_FEM
                 Cmat, Elem_nodes_tr, nelem_tr, Gauss_Num_tr, connectivity_tr, iffix):
 
     # decide how many blocks are we gonnna use
-    size_BTB = nelem * quad_num_FEM * elem_dof * elem_dof                                                                                                                                   #why multiply by quad_num
+    size_BTB = nelem * quad_num_FEM * elem_dof * elem_dof
     nblock = int(size_BTB // max_array_size_block + 1)
     nelem_per_block_regular = nelem // nblock
     if nelem % nblock == 0:
@@ -366,7 +366,6 @@ def get_A_b_FEM(XY, Elem_nodes, connectivity, nelem, Gauss_Num_FEM, quad_num_FEM
         else:
             A_sp_scipy +=  csc_matrix((V_block, (I_block, J_block)), shape=(dof_global, dof_global)) 
     
-    # A_sp_scipy for the whole mesh is obtained
     
     # Compute rhs or b, for traction force
     shape_vals_tr = get_shape_vals(Gauss_Num_tr, 1, elem_type) # dim == 1, linear element ()
@@ -1072,8 +1071,6 @@ def get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, quad_
         shape_vals = np.concatenate((shape_vals, np.zeros((len(shape_vals),1)), ), axis=1)
     # print('Traction shape_vals\n', shape_vals)
     # shape_vals = get_shape_vals_tr(Gauss_Num_CFEM, elem_type, norm_vec) # (Gauss_Num_CFEM, num_nodes), for traction boundary  
-
-
     for iblock in range(nblock):
         if iblock == nblock-1:
             nelem_per_block = nelem_per_block_remainder
@@ -1151,20 +1148,17 @@ def get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, quad_
 
 #%% Solver
 
-
 @partial(jax.jit, static_argnames=['nchunk','dof_per_chunk','dof_per_chunk_remainder'])
 def get_residual(sol, A_sp, b, inds_nodes_list, nchunk, dof_per_chunk, dof_per_chunk_remainder):
     res = b - A_sp @ sol
     res = res.at[inds_nodes_list].set(0) # disp. BC
     return res
 
-
 @partial(jax.jit, static_argnames=['nchunk','dof_per_chunk','dof_per_chunk_remainder'])
 def get_Ap(p, A_sp, inds_nodes_list, nchunk, dof_per_chunk, dof_per_chunk_remainder):
     Ap = A_sp @ p
     Ap = Ap.at[inds_nodes_list].set(0) # disp. BC
     return Ap
-
 
 def get_residual_chunks(sol, A_sp_scipy, b, inds_nodes_list, nchunk, dof_per_chunk, dof_per_chunk_remainder):
     
@@ -1179,8 +1173,7 @@ def get_residual_chunks(sol, A_sp_scipy, b, inds_nodes_list, nchunk, dof_per_chu
         res = res.at[dof_idx_chunk].set(res_chunk)
     res = res.at[inds_nodes_list].set(0) # disp. BC
     return res
-
-   
+    
 def get_Ap_chunks(p, A_sp_scipy, inds_nodes_list, nchunk, dof_per_chunk, dof_per_chunk_remainder):
     
     Ap = np.zeros(dof_global, dtype=np.double)  
@@ -1194,7 +1187,6 @@ def get_Ap_chunks(p, A_sp_scipy, inds_nodes_list, nchunk, dof_per_chunk, dof_per
         Ap = Ap.at[dof_idx_chunk].set(Ap_chunk)
     Ap = Ap.at[inds_nodes_list].set(0) # disp. BC
     return Ap
-
 
 def CG_solver(get_residual, get_Ap, sol, A_sp, b, inds_nodes_list, dof_global, tol, 
               nchunk, dof_per_chunk, dof_per_chunk_remainder):
@@ -1277,184 +1269,199 @@ if export_terminal:
 
 #%%
 
-elem_type = elem_types[0]
-nodes_per_elem = int(elem_type[3])
-elem_dof = nodes_per_elem * dim    
-
-# define quadrature numbers
-
-if elem_type == 'CPE4': # linear quad element
-    Gauss_Num_FEM = 2   # 4 
-    Gauss_Num_CFEM = 6  # 6
-    Gauss_Num_tr = 6
-elif elem_type == 'CPE8': # quadratic quad element
-    Gauss_Num_FEM = 4   # 4 
-    Gauss_Num_CFEM = 6  # 6
-    Gauss_Num_tr = 6
-elif elem_type == 'CPE3':# triangular element
-    Gauss_Num_FEM = 4   # 1, 3, 4, 6 
-    Gauss_Num_CFEM = 6  # 1, 3, 4, 6
-    Gauss_Num_tr = 6    # this is for CFEM line integral
-elif elem_type == 'CPE6': # triangular element
-    Gauss_Num_FEM = 3   # 1, 3, 4, 6 
-    Gauss_Num_CFEM = 6  # 1, 3, 4, 6
-    Gauss_Num_tr = 4    # this is always for FEM quadratic integral
-
-
-if elem_type == 'CPE4' or elem_type == 'CPE8':
-    quad_num_FEM = Gauss_Num_FEM ** dim
-    quad_num_CFEM = Gauss_Num_CFEM ** dim
-elif elem_type == 'CPE3' or elem_type == 'CPE6':
-    quad_num_FEM = Gauss_Num_FEM
-    quad_num_CFEM = Gauss_Num_CFEM
-
-s_patch = s_patches[0]
-p = ps[0] # polynomial orders
-if p == -1:
-    p = s_patch
-
-mbasis = p_dict[p]  
-alpha_dil = alpha_dils[0]
-nelem_y = nelems[0]
-nelem_x = nelem_y
-
-
-#FEM settings
-input_file_name = str(nelem_y) + '_' + elem_type + '.inp'
-parent_dir = os.path.abspath(os.getcwd())
-problem_type = '2D_Cook'                    
-XY_host, Elem_nodes_host, iffix_host, connectivity_host, Elem_tr_host, P_, norm_vec = read_mesh_ABQ(parent_dir, problem_type, input_file_name)
-nnode = len(XY_host)
-dof_global = len(iffix_host)
-nelem = len(Elem_nodes_host)
-
-# re-define boundary elements
-if elem_type == 'CPE4' or elem_type == 'CPE3':
-    Elem_nodes_tr = onp.zeros((len(Elem_tr_host), 2), dtype=onp.int64)  # (nelem_tr, 2 nodes)
-    connectivity_tr = onp.zeros((len(Elem_tr_host), 4), dtype=onp.int64)
-elif elem_type == 'CPE8'or elem_type == 'CPE6':
-    Elem_nodes_tr = onp.zeros((len(Elem_tr_host), 3), dtype=onp.int64)
-    connectivity_tr = onp.zeros((len(Elem_tr_host), 6), dtype=onp.int64)
-for ielem_idx, ielem in enumerate(Elem_tr_host):
-    elem_nodes = Elem_nodes_host[ielem]
-    XY_elem = onp.concatenate((onp.expand_dims(elem_nodes,axis=1), XY_host[elem_nodes]), axis=1)
-    XY_elem_tr = XY_elem[onp.where(XY_elem[:,1]==L)[0]] # check if x coordinate is at the boundary
-    elem_nodes_tr = XY_elem_tr[onp.argsort(XY_elem_tr[:,2]), 0]
-    Elem_nodes_tr[ielem_idx, :] = elem_nodes_tr
-    for idx, inode in enumerate(elem_nodes_tr):
-        connectivity_tr[ielem_idx, 2*idx] = 2*inode
-        connectivity_tr[ielem_idx, 2*idx+1] = 2*inode+1
-Elem_nodes_tr = np.array(Elem_nodes_tr)
-connectivity_tr = np.array(connectivity_tr)
+for elem_type in elem_types:
+    nodes_per_elem = int(elem_type[3])
+    elem_dof = nodes_per_elem * dim    
     
-# host to device array
-XY = np.array(XY_host)
-Elem_nodes = np.array(Elem_nodes_host)
-iffix = np.array(iffix_host)
-connectivity = np.array(connectivity_host)
-Elem_tr = np.array(Elem_tr_host)
-nelem_tr = len(Elem_tr)
-
-# mem_report(1, gpu_idx)
-
-if run_FEM == True:
-    print(f"\n--------- FEM {elem_type} nelem_x: {nelem_x} DOFs: {dof_global} ----------")
-
-    # compute FEM basic stuff
-    start_time = time.time()
-    A_sp_scipy, b = get_A_b_FEM(XY, Elem_nodes, connectivity, nelem, Gauss_Num_FEM, quad_num_FEM, dim, elem_type, elem_dof, dof_global, 
-                                Cmat, Elem_nodes_tr, nelem_tr, Gauss_Num_tr, connectivity_tr, iffix)
-    print(f"FEM A and b took {time.time() - start_time:.4f} seconds")
+    # define quadrature numbers
+    
+    if elem_type == 'CPE4': # linear quad element
+        Gauss_Num_FEM = 2   # 4 
+        Gauss_Num_CFEM = 6  # 6
+        Gauss_Num_tr = 6
+    elif elem_type == 'CPE8': # quadratic quad element
+        Gauss_Num_FEM = 4   # 4 
+        Gauss_Num_CFEM = 6  # 6
+        Gauss_Num_tr = 6
+    elif elem_type == 'CPE3':# triangular element
+        Gauss_Num_FEM = 4   # 1, 3, 4, 6 
+        Gauss_Num_CFEM = 6  # 1, 3, 4, 6
+        Gauss_Num_tr = 6    # this is for CFEM line integral
+    elif elem_type == 'CPE6': # triangular element
+        Gauss_Num_FEM = 3   # 1, 3, 4, 6 
+        Gauss_Num_CFEM = 6  # 1, 3, 4, 6
+        Gauss_Num_tr = 4    # this is always for FEM quadratic integral
     
     
-    # CG solver
-    # Divide A_sp matrix into nchunk
-    size_A_sp = dof_global * 9 * 3 # 9 is nodal connectivity. Each node is connected to 9 surrounding nodes. 3 means sparse values & indicies 
-    nchunk = int(size_A_sp // max_array_size_chunk + 1)
-    if dof_global % nchunk == 0:
-        dof_per_chunk = dof_global // nchunk
-        dof_per_chunk_remainder = dof_per_chunk
-    else:
-        dof_per_chunk = dof_global // nchunk
-        dof_per_chunk_remainder = dof_per_chunk + dof_global % nchunk
-    print(f"A_sp array -> {nchunk} chunks")
+    if elem_type == 'CPE4' or elem_type == 'CPE8':
+        quad_num_FEM = Gauss_Num_FEM ** dim
+        quad_num_CFEM = Gauss_Num_CFEM ** dim
+    elif elem_type == 'CPE3' or elem_type == 'CPE6':
+        quad_num_FEM = Gauss_Num_FEM
+        quad_num_CFEM = Gauss_Num_CFEM
     
-    inds_nodes_list = np.where(iffix==1)[0]
-    sol = np.zeros(dof_global, dtype=np.double)              # (dof,)
-    tol = 1e-10
+    for s_patch in s_patches:
+        for p in ps: # polynomial orders
+            if p == -1:
+                p = s_patch
+        
+            mbasis = p_dict[p]  
+            for alpha_dil in alpha_dils:
+                for nelem_y in nelems:
+                    nelem_x = nelem_y
+                    
+                    
+                    #FEM settings
+                    input_file_name = str(nelem_y) + '_' + elem_type + '.inp'
+                    parent_dir = os.path.abspath(os.getcwd())
+                    problem_type = '2D_Cook'                    
+                    XY_host, Elem_nodes_host, iffix_host, connectivity_host, Elem_tr_host, P_, norm_vec = read_mesh_ABQ(parent_dir, problem_type, input_file_name)
+                    nnode = len(XY_host)
+                    dof_global = len(iffix_host)
+                    nelem = len(Elem_nodes_host)
+                    
+                    # re-define boundary elements
+                    if elem_type == 'CPE4' or elem_type == 'CPE3':
+                        Elem_nodes_tr = onp.zeros((len(Elem_tr_host), 2), dtype=onp.int64)  # (nelem_tr, 2 nodes)
+                        connectivity_tr = onp.zeros((len(Elem_tr_host), 4), dtype=onp.int64)
+                    elif elem_type == 'CPE8'or elem_type == 'CPE6':
+                        Elem_nodes_tr = onp.zeros((len(Elem_tr_host), 3), dtype=onp.int64)
+                        connectivity_tr = onp.zeros((len(Elem_tr_host), 6), dtype=onp.int64)
+                    for ielem_idx, ielem in enumerate(Elem_tr_host):
+                        elem_nodes = Elem_nodes_host[ielem]
+                        XY_elem = onp.concatenate((onp.expand_dims(elem_nodes,axis=1), XY_host[elem_nodes]), axis=1)
+                        XY_elem_tr = XY_elem[onp.where(XY_elem[:,1]==L)[0]] # check if x coordinate is at the boundary
+                        elem_nodes_tr = XY_elem_tr[onp.argsort(XY_elem_tr[:,2]), 0]
+                        Elem_nodes_tr[ielem_idx, :] = elem_nodes_tr
+                        for idx, inode in enumerate(elem_nodes_tr):
+                            connectivity_tr[ielem_idx, 2*idx] = 2*inode
+                            connectivity_tr[ielem_idx, 2*idx+1] = 2*inode+1
+                    Elem_nodes_tr = np.array(Elem_nodes_tr)
+                    connectivity_tr = np.array(connectivity_tr)
+                        
+                    # host to device array
+                    XY = np.array(XY_host)
+                    Elem_nodes = np.array(Elem_nodes_host)
+                    iffix = np.array(iffix_host)
+                    connectivity = np.array(connectivity_host)
+                    Elem_tr = np.array(Elem_tr_host)
+                    nelem_tr = len(Elem_tr)
     
-    if nchunk == 1: # when DOFs are small
-        A_sp = BCOO.from_scipy_sparse(A_sp_scipy)
-        sol = CG_solver(get_residual, get_Ap, sol, A_sp, b, inds_nodes_list, dof_global, tol, 
-                        nchunk, dof_per_chunk, dof_per_chunk_remainder)
-    else: # when DOFs are big
-        sol = CG_solver(get_residual_chunks, get_Ap_chunks, sol, A_sp_scipy, b, inds_nodes_list, dof_global, tol, 
-                        nchunk, dof_per_chunk, dof_per_chunk_remainder)
-    u_glo = onp.array(sol)
-    xy = onp.zeros_like(XY_host)# compare
-    uv = onp.zeros_like(XY_host)
-    for inode, iXY in enumerate(XY_host):
-        xy[inode,:] = iXY + u_glo[inode*2:inode*2+2]
-        uv[inode,:] = u_glo[inode*2:inode*2+2]
-    print(f'v_h: {uv[nelem_x*(nelem_x+1),1]: .4e}')
-    # print(uv)
+                    # mem_report(1, gpu_idx)
     
-    mem_report(2, gpu_idx)
+                    if run_FEM == True:
+                        print(f"\n--------- FEM {elem_type} nelem_x: {nelem_x} DOFs: {dof_global} ----------")
+            
+                        # compute FEM basic stuff
+                        start_time = time.time()
+                        A_sp_scipy, b = get_A_b_FEM(XY, Elem_nodes, connectivity, nelem, Gauss_Num_FEM, quad_num_FEM, dim, elem_type, elem_dof, dof_global, 
+                                                    Cmat, Elem_nodes_tr, nelem_tr, Gauss_Num_tr, connectivity_tr, iffix)
+                        print(f"FEM A and b took {time.time() - start_time:.4f} seconds")
+                        
+                        
+                        # CG solver
+                        # Divide A_sp matrix into nchunk
+                        size_A_sp = dof_global * 9 * 3 # 9 is nodal connectivity. Each node is connected to 9 surrounding nodes. 3 means sparse values & indicies 
+                        nchunk = int(size_A_sp // max_array_size_chunk + 1)
+                        if dof_global % nchunk == 0:
+                            dof_per_chunk = dof_global // nchunk
+                            dof_per_chunk_remainder = dof_per_chunk
+                        else:
+                            dof_per_chunk = dof_global // nchunk
+                            dof_per_chunk_remainder = dof_per_chunk + dof_global % nchunk
+                        print(f"A_sp array -> {nchunk} chunks")
+                        
+                        inds_nodes_list = np.where(iffix==1)[0]
+                        sol = np.zeros(dof_global, dtype=np.double)              # (dof,)
+                        tol = 1e-10
+                        
+                        if nchunk == 1: # when DOFs are small
+                            A_sp = BCOO.from_scipy_sparse(A_sp_scipy)
+                            sol = CG_solver(get_residual, get_Ap, sol, A_sp, b, inds_nodes_list, dof_global, tol, 
+                                            nchunk, dof_per_chunk, dof_per_chunk_remainder)
+                        else: # when DOFs are big
+                            sol = CG_solver(get_residual_chunks, get_Ap_chunks, sol, A_sp_scipy, b, inds_nodes_list, dof_global, tol, 
+                                            nchunk, dof_per_chunk, dof_per_chunk_remainder)
+                        u_glo = onp.array(sol)
+                        xy = onp.zeros_like(XY_host)# compare
+                        uv = onp.zeros_like(XY_host)
+                        for inode, iXY in enumerate(XY_host):
+                            xy[inode,:] = iXY + u_glo[inode*2:inode*2+2]
+                            uv[inode,:] = u_glo[inode*2:inode*2+2]
+                        print(f'v_h: {uv[nelem_x*(nelem_x+1),1]: .4e}')
+                        # print(uv)
+                       
+                        mem_report(2, gpu_idx)
+    
+                    #%% ########################## CFEM ######################
+                    if run_CFEM == False:
+                        continue
+                    if elem_type != 'CPE4' and elem_type != 'CPE3':
+                        continue
+                    if s_patch*2 > nelem_x:
+                        continue
+                    if p > s_patch or p > alpha_dil:
+                        continue
+                    # compute adjacency matrix - Serial
+                    print(f"\n- - - - - - CFEM {elem_type} nelem_x: {nelem_x} with s: {s_patch}, a: {alpha_dil}, p: {p} - - - - - -")  
+                    
+                    start_time_org = time.time()
+                    indices, indptr = get_adj_mat(Elem_nodes_host, nnode, s_patch)
+                    print(f"CFEM adj_s matrix took {time.time() - start_time_org:.4f} seconds")
+            
+                    # # patch settings
+                    d_c = L/nelem_y     # characteristic length in physical coord.
+                    a_dil = alpha_dil * d_c
+                    
+                    # compute Elemental patch - Serial
+                    start_time = time.time()
+                    edex_max, ndex_max = get_dex_max(indices, indptr, s_patch, d_c, XY_host, Elem_nodes_host, nelem, nnode, nodes_per_elem)
+                    print(f'edex_max / ndex_max: {edex_max} / {ndex_max}, took {time.time() - start_time:.4f} seconds')
+                    
+                    ############################  get_A_b_CFEM function ############
+                    start_time = time.time()
+                    A_sp_scipy, b, jit_time = get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, quad_num_CFEM, dim, elem_type, nodes_per_elem, dof_global, 
+                                                    Cmat, Elem_tr, nelem_tr, Gauss_Num_tr, connectivity_tr, iffix,
+                                                    indices, indptr, s_patch, d_c, edex_max, ndex_max, a_dil, mbasis)
+                    print(f"CFEM A and b took {time.time() - start_time:.4f} seconds")
+                    mem_report(3, gpu_idx)
+                    
+                    # CG solver
+                    # Divide A_sp matrix into nchunk
+                    size_A_sp = dof_global * edex_max * 3 # edex_max is nodal connectivity ~ bandwidth. 3 means sparse values & indicies 
+                    nchunk = int(size_A_sp // max_array_size_chunk + 1)
+                    if dof_global % nchunk == 0:
+                        dof_per_chunk = dof_global // nchunk
+                        dof_per_chunk_remainder = dof_per_chunk
+                    else:
+                        dof_per_chunk = dof_global // nchunk
+                        dof_per_chunk_remainder = dof_per_chunk + dof_global % nchunk
+                    print(f"A_sp array -> {nchunk} chunks")
+                    
+                    inds_nodes_list = np.where(iffix==1)[0]
+                    sol = np.zeros(dof_global, dtype=np.double)              # (dof,)
+                    tol = 1e-10
+                    
+                    if nchunk == 1: # when DOFs are small
+                        A_sp = BCOO.from_scipy_sparse(A_sp_scipy)
+                        sol = CG_solver(get_residual, get_Ap, sol, A_sp, b, inds_nodes_list, dof_global, tol, 
+                                        nchunk, dof_per_chunk, dof_per_chunk_remainder)
+                    else: # when DOFs are big
+                        sol = CG_solver(get_residual_chunks, get_Ap_chunks, sol, A_sp_scipy, b, inds_nodes_list, dof_global, tol, 
+                                        nchunk, dof_per_chunk, dof_per_chunk_remainder)
+                    u_glo = onp.array(sol)
+                    xy = onp.zeros_like(XY_host)# compare
+                    uv = onp.zeros_like(XY_host)
+                    for inode, iXY in enumerate(XY_host):
+                        xy[inode,:] = iXY + u_glo[inode*2:inode*2+2]
+                        uv[inode,:] = u_glo[inode*2:inode*2+2]
+                    print(f'v_h: {uv[nelem_x*(nelem_x+1),1]: .4e}')
+                    # print(uv)
+                        
+                    # mem_report(4, gpu_idx)
+        
+        
 
-#%% ########################## CFEM ######################
-
-print(f"\n- - - - - - CFEM {elem_type} nelem_x: {nelem_x} with s: {s_patch}, a: {alpha_dil}, p: {p} - - - - - -")  
-
-start_time_org = time.time()
-indices, indptr = get_adj_mat(Elem_nodes_host, nnode, s_patch)
-print(f"CFEM adj_s matrix took {time.time() - start_time_org:.4f} seconds")
-
-# # patch settings
-d_c = L/nelem_y     # characteristic length in physical coord.
-a_dil = alpha_dil * d_c
-
-# compute Elemental patch - Serial
-start_time = time.time()
-edex_max, ndex_max = get_dex_max(indices, indptr, s_patch, d_c, XY_host, Elem_nodes_host, nelem, nnode, nodes_per_elem)
-print(f'edex_max / ndex_max: {edex_max} / {ndex_max}, took {time.time() - start_time:.4f} seconds')
-
-############################  get_A_b_CFEM function ############
-start_time = time.time()
-A_sp_scipy, b, jit_time = get_A_b_CFEM(XY, XY_host, Elem_nodes, Elem_nodes_host, Gauss_Num_CFEM, quad_num_CFEM, dim, elem_type, nodes_per_elem, dof_global, 
-                                Cmat, Elem_tr, nelem_tr, Gauss_Num_tr, connectivity_tr, iffix,
-                                indices, indptr, s_patch, d_c, edex_max, ndex_max, a_dil, mbasis)
-print(f"CFEM A and b took {time.time() - start_time:.4f} seconds")
-mem_report(3, gpu_idx)
-
-# CG solver
-# Divide A_sp matrix into nchunk
-size_A_sp = dof_global * edex_max * 3 # edex_max is nodal connectivity ~ bandwidth. 3 means sparse values & indicies 
-nchunk = int(size_A_sp // max_array_size_chunk + 1)
-if dof_global % nchunk == 0:
-    dof_per_chunk = dof_global // nchunk
-    dof_per_chunk_remainder = dof_per_chunk
-else:
-    dof_per_chunk = dof_global // nchunk
-    dof_per_chunk_remainder = dof_per_chunk + dof_global % nchunk
-print(f"A_sp array -> {nchunk} chunks")
-
-inds_nodes_list = np.where(iffix==1)[0]
-sol = np.zeros(dof_global, dtype=np.double)              # (dof,)
-tol = 1e-10
-
-if nchunk == 1: # when DOFs are small
-    A_sp = BCOO.from_scipy_sparse(A_sp_scipy)
-    sol = CG_solver(get_residual, get_Ap, sol, A_sp, b, inds_nodes_list, dof_global, tol, 
-                    nchunk, dof_per_chunk, dof_per_chunk_remainder)
-else: # when DOFs are big
-    sol = CG_solver(get_residual_chunks, get_Ap_chunks, sol, A_sp_scipy, b, inds_nodes_list, dof_global, tol, 
-                    nchunk, dof_per_chunk, dof_per_chunk_remainder)
-u_glo = onp.array(sol)
-xy = onp.zeros_like(XY_host)# compare
-uv = onp.zeros_like(XY_host)
-for inode, iXY in enumerate(XY_host):
-    xy[inode,:] = iXY + u_glo[inode*2:inode*2+2]
-    uv[inode,:] = u_glo[inode*2:inode*2+2]
-print(f'v_h: {uv[nelem_x*(nelem_x+1),1]: .4e}')
-
+# if export_terminal:
+#     sys.stdout.close()
 
