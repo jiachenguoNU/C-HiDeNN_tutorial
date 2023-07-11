@@ -1233,11 +1233,11 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_idx)
 # Problem settings
 p_dict={0:0, 1:3, 2:6, 3:10, 4:15, 5:21, 6:28, 7:36, 8:45, 9:55, 10:66} # number of complete basis for polynomial order p
 # ps = [4]      # [0, 1, 2, 3]
-alpha_dils = [40]       # [1.2, 1.4, 2.2, 2.4, 3.2, 3.4, 4.2, 4.4]    # dilation parameter
+alpha_dils = [4.2]       # [1.2, 1.4, 2.2, 2.4, 3.2, 3.4, 4.2, 4.4]    # dilation parameter
 # alpha_dils = onp.arange(1, 6.2, 0.2)
-s_patches = [1]         # elemental patch_size
+s_patches = [4]         # elemental patch_size
 ps = [-1] # -1 : same as s_patch
-nelems = [4]        # [4, 10, 15, 20, 30, 40, 50, 100, 200, 400, 700, 1024]
+nelems = [50]        # [4, 10, 15, 20, 30, 40, 50, 100, 200, 400, 700, 1024]
 
 # max_array_size_block = 2e7  # 5e8 for Athena / 2e7 for laptop
 # max_array_size_chunk = 2e7  #
@@ -1309,11 +1309,11 @@ elif elem_type == 'CPE3' or elem_type == 'CPE6':
     quad_num_CFEM = Gauss_Num_CFEM
 
 s_patch = s_patches[0]
-p = ps[0] # polynomial orders
+p = ps[0] # polynomial orders                                       #how to choose approapriate p order for a given a and s?
 if p == -1:
     p = s_patch
 
-mbasis = p_dict[p]  
+mbasis = p_dict[2]  
 alpha_dil = alpha_dils[0]
 nelem_y = nelems[0]
 nelem_x = nelem_y
@@ -1323,7 +1323,7 @@ nelem_x = nelem_y
 input_file_name = str(nelem_y) + '_' + elem_type + '.inp'
 parent_dir = os.path.abspath(os.getcwd())
 problem_type = '2D_Cook'                    
-XY_host, Elem_nodes_host, iffix_host, connectivity_host, Elem_tr_host, P_, norm_vec = read_mesh_ABQ(parent_dir, problem_type, input_file_name)
+XY_host, Elem_nodes_host, iffix_host, connectivity_host, Elem_tr_host = read_mesh_ABQ(parent_dir, problem_type, input_file_name)
 nnode = len(XY_host)
 dof_global = len(iffix_host)
 nelem = len(Elem_nodes_host)

@@ -45,15 +45,15 @@ def read_mesh_ABQ(parent_dir, problem_type, input_file_name):
             # print(f'---Elem_nodes took {time.time() - start_time:.4f} seconds')
             # start_time = time.time()
         
-        # # read traction bc set
-        # if '*Elset' in line and 'Surf-1_S' in line and 'instance' in line:
-        #     count += 1
-        #     if 'generate' in line: # when the fixed boundary nodes are represented as a 'generate' mode
-        #         line_list =  [int(item.strip()) for item in lines[count].strip().split(',')]
-        #         # print(line_list)
-        #         # elements at traction boundary
-        #         Elem_trac = np.linspace(line_list[0], line_list[1], 
-        #                                         int( (line_list[1]-line_list[0])/line_list[2]) +1, dtype=np.int64) - 1
+        # read traction bc set
+        if '*Elset' in line and 'Surf-1_S' in line and 'instance' in line:
+            count += 1
+            if 'generate' in line: # when the fixed boundary nodes are represented as a 'generate' mode
+                line_list =  [int(item.strip()) for item in lines[count].strip().split(',')]
+                # print(line_list)
+                # elements at traction boundary
+                Elem_trac = np.linspace(line_list[0], line_list[1], 
+                                                int( (line_list[1]-line_list[0])/line_list[2]) +1, dtype=np.int64) - 1
                 # print(Elem_trac)
         # if 'Surface traction' in line:
         #     count += 2
@@ -108,7 +108,7 @@ def read_mesh_ABQ(parent_dir, problem_type, input_file_name):
     # print(f'---connectivity input took {time.time() - start_time:.4f} seconds')
     
     
-    return XY, elem_nodes, iffix, connectivity
+    return XY, elem_nodes, iffix, connectivity, Elem_trac
 
 def read_mesh_ABQ_2D_Beam(parent_dir, problem_type, input_file_name):
     
